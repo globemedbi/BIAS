@@ -1,0 +1,30 @@
+# BIAS Standard Base Requirements
+# Do not remove any of these without team consensus
+
+# Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# HTTP Client
+httpx==0.26.0
+
+# Logging
+structlog==24.1.0
+
+# Database
+asyncpg==0.29.0
+sqlalchemy[asyncio]==2.0.25
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+
+# Code Quality (dev only but kept unified)
+black==23.12.1
+isort==5.13.2
+flake8==7.0.0
+mypy==1.8.0
+bandit==1.7.6

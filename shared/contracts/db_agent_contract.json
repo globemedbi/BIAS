@@ -1,0 +1,15 @@
+{
+  "service": "DB_AGENT",
+  "port": 8003,
+  "version": "1.0",
+  "endpoints": [
+    { "method": "POST", "path": "/claims/store" },
+    { "method": "POST", "path": "/authorization/fetch" },
+    { "method": "POST", "path": "/claims/history" },
+    { "method": "POST", "path": "/query/nl" },
+    { "method": "POST", "path": "/logs/audit" },
+    { "method": "POST", "path": "/registry/save" },
+    { "method": "GET",  "path": "/registry/load" },
+    { "method": "GET",  "path": "/health" }
+  ]
+}

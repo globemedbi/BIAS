@@ -1,0 +1,32 @@
+{
+  "request_type": "CLAIM_AUDIT",
+  "steps": [
+    {
+      "stage": 1,
+      "service": "FILE_MANAGEMENT",
+      "endpoint": "/api/v1/process",
+      "routing": {
+        "next_on_success": 2,
+        "next_on_failure": 99
+      }
+    },
+    {
+      "stage": 2,
+      "service": "CLAIMS_EXPERT",
+      "endpoint": "/api/v1/audit",
+      "routing": {
+        "next_on_success": 3,
+        "next_on_failure": 99
+      }
+    },
+    {
+      "stage": 3,
+      "service": "CHATBOT",
+      "endpoint": "/api/v1/format",
+      "routing": {
+        "next_on_success": "COMPLETE",
+        "next_on_failure": 99
+      }
+    }
+  ]
+}

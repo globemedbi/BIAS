@@ -1,0 +1,137 @@
+version: "3.9"
+
+services:
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    container_name: bias-orchestrator
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    networks:
+      - bias-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  communicator:
+    build:
+      context: ./communicator
+      dockerfile: Dockerfile
+    container_name: bias-communicator
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    networks:
+      - bias-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  db-agent:
+    build:
+      context: ./db-agent
+      dockerfile: Dockerfile
+    container_name: bias-db-agent
+    ports:
+      - "8003:8003"
+    env_file:
+      - .env
+    networks:
+      - bias-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  llm-agent:
+    build:
+      context: ./llm-agent
+      dockerfile: Dockerfile
+    container_name: bias-llm-agent
+    ports:
+      - "8005:8005"
+    env_file:
+      - .env
+    networks:
+      - bias-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  file-management:
+    build:
+      context: ./file-management
+      dockerfile: Dockerfile
+    container_name: bias-file-management
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env
+    networks:
+      - bias-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  claims-expert:
+    build:
+      context: ./claims-expert
+      dockerfile: Dockerfile
+    container_name: bias-claims-expert
+    ports:
+      - "8004:8004"
+    env_file:
+      - .env
+    networks:
+      - bias-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  chatbot:
+    build:
+      context: ./chatbot
+      dockerfile: Dockerfile
+    container_name: bias-chatbot
+    ports:
+      - "8006:8006"
+    env_file:
+      - .env
+    networks:
+      - bias-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+networks:
+  bias-network:
+    driver: bridge
+    name: bias-network

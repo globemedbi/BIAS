@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bias-orchestrator
+  labels:
+    app: bias-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bias-orchestrator
+  template:
+    metadata:
+      labels:
+        app: bias-orchestrator
+    spec:
+      containers:
+        - name: orchestrator
+          image: bias-orchestrator:latest
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - secretRef:
+                name: bias-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+spec:
+  selector:
+    app: bias-orchestrator
+  ports:
+    - port: 8001
+      targetPort: 8001

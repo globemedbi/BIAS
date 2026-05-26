@@ -1,0 +1,103 @@
+name: BIAS PR Checks
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+
+  convention-check:
+    name: Code Convention Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install quality tools
+        run: |
+          pip install black isort flake8 mypy bandit
+
+      - name: Black formatting check
+        run: black --check .
+
+      - name: isort import check
+        run: isort --check-only .
+
+      - name: Flake8 lint check
+        run: flake8 .
+
+      - name: MyPy type check
+        run: mypy shared/
+
+      - name: Bandit security scan
+        run: bandit -c pyproject.toml -r . --exclude tests/
+
+  test-coverage:
+    name: Test Coverage Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - orchestrator
+          - communicator
+          - db-agent
+          - llm-agent
+          - file-management
+          - claims-expert
+          - chatbot
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r ${{ matrix.service }}/requirements.txt
+
+      - name: Run tests with coverage
+        run: |
+          cd ${{ matrix.service }}
+          pytest --cov=. --cov-fail-under=80 --cov-report=term-missing
+
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog secret scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+
+  build-check:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - orchestrator
+          - communicator
+          - db-agent
+          - llm-agent
+          - file-management
+          - claims-expert
+          - chatbot
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t bias-${{ matrix.service }}:pr-check \
+            ./${{ matrix.service }}/

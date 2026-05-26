@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bias-chatbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bias-chatbot
+  template:
+    metadata:
+      labels:
+        app: bias-chatbot
+    spec:
+      containers:
+        - name: chatbot
+          image: bias-chatbot:latest
+          ports:
+            - containerPort: 8006
+          envFrom:
+            - secretRef:
+                name: bias-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot
+spec:
+  selector:
+    app: bias-chatbot
+  ports:
+    - port: 8006
+      targetPort: 8006

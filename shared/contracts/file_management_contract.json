@@ -1,0 +1,11 @@
+{
+  "service": "FILE_MANAGEMENT",
+  "port": 8002,
+  "version": "1.0",
+  "endpoints": [
+    { "method": "POST", "path": "/api/v1/process" },
+    { "method": "GET",  "path": "/api/v1/process/status/{job_id}" },
+    { "method": "GET",  "path": "/api/v1/extract/{claim_id}" },
+    { "method": "GET",  "path": "/health" }
+  ]
+}

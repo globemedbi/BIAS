@@ -1,0 +1,12 @@
+{
+  "service": "CHATBOT",
+  "port": 8006,
+  "version": "1.0",
+  "endpoints": [
+    { "method": "POST", "path": "/api/v1/format" },
+    { "method": "POST", "path": "/api/v1/chat" },
+    { "method": "GET",  "path": "/api/v1/chat/history/{session_id}" },
+    { "method": "POST", "path": "/api/v1/chat/session" },
+    { "method": "GET",  "path": "/health" }
+  ]
+}

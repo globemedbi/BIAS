@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bias-llm-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bias-llm-agent
+  template:
+    metadata:
+      labels:
+        app: bias-llm-agent
+    spec:
+      containers:
+        - name: llm-agent
+          image: bias-llm-agent:latest
+          ports:
+            - containerPort: 8005
+          envFrom:
+            - secretRef:
+                name: bias-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-agent
+spec:
+  selector:
+    app: bias-llm-agent
+  ports:
+    - port: 8005
+      targetPort: 8005

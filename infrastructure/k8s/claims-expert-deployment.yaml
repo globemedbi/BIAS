@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bias-claims-expert
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bias-claims-expert
+  template:
+    metadata:
+      labels:
+        app: bias-claims-expert
+    spec:
+      containers:
+        - name: claims-expert
+          image: bias-claims-expert:latest
+          ports:
+            - containerPort: 8004
+          envFrom:
+            - secretRef:
+                name: bias-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: claims-expert
+spec:
+  selector:
+    app: bias-claims-expert
+  ports:
+    - port: 8004
+      targetPort: 8004

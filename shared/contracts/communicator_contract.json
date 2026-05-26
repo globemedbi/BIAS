@@ -1,0 +1,14 @@
+{
+  "service": "COMMUNICATOR",
+  "port": 8000,
+  "version": "1.0",
+  "endpoints": [
+    { "method": "POST", "path": "/api/v1/claims/submit" },
+    { "method": "GET",  "path": "/api/v1/claims/{request_id}/status" },
+    { "method": "GET",  "path": "/api/v1/claims/history" },
+    { "method": "GET",  "path": "/api/v1/claims/{request_id}/report" },
+    { "method": "GET",  "path": "/api/v1/health" },
+    { "method": "POST", "path": "/internal/v1/callback" },
+    { "method": "GET",  "path": "/internal/v1/health" }
+  ]
+}

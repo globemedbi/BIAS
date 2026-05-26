@@ -1,0 +1,14 @@
+{
+  "request_type": "DOC_ANONYMIZATION",
+  "steps": [
+    {
+      "stage": 1,
+      "service": "FILE_MANAGEMENT",
+      "endpoint": "/api/v1/process",
+      "routing": {
+        "next_on_success": "COMPLETE",
+        "next_on_failure": 99
+      }
+    }
+  ]
+}

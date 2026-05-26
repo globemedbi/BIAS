@@ -1,0 +1,35 @@
+name: BIAS CI
+
+on:
+  push:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Test All Services
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - orchestrator
+          - communicator
+          - db-agent
+          - llm-agent
+          - file-management
+          - claims-expert
+          - chatbot
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r ${{ matrix.service }}/requirements.txt
+
+      - name: Run tests
+        run: |
+          cd ${{ matrix.service }}
+          pytest --cov=. --cov-fail-under=80

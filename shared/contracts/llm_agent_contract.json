@@ -1,0 +1,12 @@
+{
+  "service": "LLM_AGENT",
+  "port": 8005,
+  "version": "1.0",
+  "endpoints": [
+    { "method": "POST", "path": "/api/v1/complete" },
+    { "method": "POST", "path": "/api/v1/embed" },
+    { "method": "GET",  "path": "/api/v1/models" },
+    { "method": "GET",  "path": "/api/v1/usage/report" },
+    { "method": "GET",  "path": "/health" }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "service": "ORCHESTRATOR",
+  "port": 8001,
+  "version": "1.0",
+  "endpoints": [
+    { "method": "POST", "path": "/plan/create" },
+    { "method": "POST", "path": "/plan/{plan_id}/stage/update" },
+    { "method": "GET",  "path": "/plan/{plan_id}/status" },
+    { "method": "POST", "path": "/plan/{plan_id}/recover" },
+    { "method": "POST", "path": "/registry/register" },
+    { "method": "GET",  "path": "/registry" },
+    { "method": "GET",  "path": "/metrics" },
+    { "method": "GET",  "path": "/health" }
+  ]
+}
