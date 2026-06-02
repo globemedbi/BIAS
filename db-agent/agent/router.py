@@ -25,8 +25,10 @@ from vector_db.vector_connector import VectorDBConnector
 # NL2SQL translator — converts natural language to validated SQL via LLM Agent
 from nl2sql.translator import translate as nl_translate
 
-# routing registry — used by the pkg_procedure: dispatcher to read call_type
-from agent.routing_registry import lookup, get_required_input_keys
+# routing registry — used by the dispatcher to read connector, call_type, sql, input_keys
+from agent.routing_registry import (
+    lookup, get_required_input_keys, get_connector, get_sql, get_database_connection
+)
 
 # shared structured logger
 from shared.communication_layer.logger import get_logger
@@ -202,51 +204,115 @@ ROUTE_REGISTRY: Dict[str, RouteHandler] = {
 # ── DISPATCHER — the single public function all route files call ──────────────
 
 async def dispatch(route: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Looks up the route and calls its handler. Raises KeyError for unknown routes."""
+    """
+    YAML-driven dispatcher.
 
-    # ── GENERIC ORACLE PROCEDURE PREFIX ──────────────────────────────────────────
-    # any route that starts with "pkg_procedure:" is a direct Oracle stored-procedure
-    # call — the procedure name is everything after the colon, e.g.:
-    #   "pkg_procedure:PKG_AGENT_INSERT_CLAIM.PROCESS_ATTACHMENT_JSON"
-    # this avoids having to register every Oracle procedure explicitly in ROUTE_REGISTRY
-    if route.startswith("pkg_procedure:"):
+    Resolution order:
+      1. Read 'connector' and 'call_type' from routing_registry.yaml
+      2. Route to the correct DB connector based on those two fields
+      3. Fall through to static ROUTE_REGISTRY for complex routes that
+         need custom Python logic (nl_query, fetch_authorization, etc.)
 
-        # strip the prefix to get the fully-qualified Oracle procedure name
-        procedure_name = route[len("pkg_procedure:"):]
+    connector values → DB connector
+        oracle           → VectorDBConnector  (Oracle 23ai)
+        legacy_postgres  → LegacyDBConnector  (on-premise PostgreSQL)
+        dwh              → DWHConnector        (data-warehouse PostgreSQL)
+        logging_postgres → LoggingDBConnector  (logging PostgreSQL)
 
-        # guard: procedure name must not be blank after stripping the prefix
-        if not procedure_name:
-            raise KeyError("pkg_procedure: route requires a procedure name after the colon")
+    call_type values → how to call the connector
+        json_clob    → Oracle: callproc(IN CLOB JSON, OUT CLOB JSON)
+        named_params → Oracle: callproc with individual typed IN params
+        sql_select   → PostgreSQL: parameterised SELECT, returns rows
+        sql_dml      → PostgreSQL: parameterised INSERT/UPDATE/DELETE
+    """
 
-        # read the registry entry to determine which call path to use
-        entry     = lookup(route)
-        call_type = entry.get("call_type", "json_clob") if entry else "json_clob"
+    # ── STEP 1: READ YAML METADATA ────────────────────────────────────────────
 
-        logger.info("dispatching_procedure", procedure=procedure_name, call_type=call_type)
+    entry = lookup(route)
 
-        if call_type == "named_params":
-            # procedure has individual typed IN params and no OUT CLOB
-            # use input_keys from the registry to build the positional argument list
+    if entry:
+        connector = get_connector(route)   # which DB to target
+        call_type = entry.get("call_type", "json_clob")
+
+        logger.info("dispatching", route=route, connector=connector, call_type=call_type)
+
+        # ── ORACLE CONNECTOR ──────────────────────────────────────────────────
+        if connector == "oracle":
+
+            # ── PROCEDURE NAME ────────────────────────────────────────────────
+            # Resolution order:
+            #   1. package + procedure from YAML → "PKG_NAME.PROC_NAME"
+            #   2. procedure field alone (if already fully qualified)
+            #   3. strip the pkg_procedure: prefix from the route key (fallback)
+            pkg  = str(entry.get("package")   or "").strip()
+            proc = str(entry.get("procedure") or "").strip()
+            if pkg and proc:
+                procedure_name = f"{pkg}.{proc}"
+            elif proc:
+                procedure_name = proc
+            elif route.startswith("pkg_procedure:"):
+                procedure_name = route[len("pkg_procedure:"):]
+            else:
+                procedure_name = route
+
+            if not procedure_name:
+                raise KeyError(f"Route '{route}' has connector=oracle but no procedure name")
+
+            # ── DATABASE CONNECTION ───────────────────────────────────────────
+            # Read the per-route database_connection block from the YAML.
+            # If absent, the connector falls back to VECTOR_DB_* env-var defaults.
+            # This is what allows each route to target a different Oracle server.
+            db_conn = get_database_connection(route)
+
+            if call_type == "named_params":
+                param_keys = get_required_input_keys(route)
+                return await _vector.execute_named_procedure(
+                    procedure_name, payload, param_keys, db_conn
+                )
+
+            # default: json_clob — (IN CLOB JSON, OUT CLOB JSON)
+            return await _vector.execute_procedure(procedure_name, payload, db_conn)
+
+        # ── POSTGRESQL CONNECTORS ─────────────────────────────────────────────
+        if connector in ("legacy_postgres", "dwh", "logging_postgres"):
+
+            # select the correct asyncpg connector instance
+            pg_connector = {
+                "legacy_postgres":  _legacy,
+                "dwh":              _dwh,
+                "logging_postgres": _logging,
+            }[connector]
+
+            # read the SQL template from the YAML 'sql:' field
+            sql = get_sql(route)
+            if not sql:
+                raise KeyError(
+                    f"Route '{route}' has connector={connector} but no 'sql:' field in YAML"
+                )
+
+            # build the ordered parameter list from input_keys
             param_keys = get_required_input_keys(route)
-            return await _vector.execute_named_procedure(procedure_name, payload, param_keys)
+            params     = [payload.get(k) for k in param_keys]
 
-        # default: procedure expects (IN CLOB JSON, OUT CLOB JSON)
-        return await _vector.execute_procedure(procedure_name, payload)
+            if call_type == "sql_dml":
+                # INSERT / UPDATE / DELETE — commit is handled by the connector
+                await pg_connector.execute_query_raw(sql, params)
+                return {"status": "SUCCESS", "affected_rows": 1}
 
-    # ── STATIC REGISTRY LOOKUP ────────────────────────────────────────────────────
+            # default PostgreSQL call type: sql_select — returns rows as list of dicts
+            rows = await pg_connector.execute_query_raw(sql, params)
+            return {"rows": rows, "count": len(rows)}
 
-    # look up the handler by name — returns None if not registered
+    # ── STEP 2: STATIC ROUTE REGISTRY (complex / custom-logic routes) ─────────
+    # Routes that need Python logic beyond a single SQL/procedure call
+    # (e.g. nl_query invokes LLM Agent; fetch_authorization reshapes the result).
+    # These stay here until they are simple enough to express in the YAML.
+
     handler = ROUTE_REGISTRY.get(route)
 
-    # if the route name is not in the registry, reject it immediately
     if handler is None:
-        # log the unknown route name so developers can debug missing registrations
         logger.warning("unknown_route", route=route)
-        # the calling route file catches KeyError and converts it to HTTP 422
         raise KeyError(f"Unknown route: '{route}'")
 
-    # log which operation is being executed — useful for distributed tracing
-    logger.info("dispatching", route=route)
-
-    # call the handler and return its result — all handlers are async
+    logger.info("dispatching_static", route=route)
     return await handler(payload)

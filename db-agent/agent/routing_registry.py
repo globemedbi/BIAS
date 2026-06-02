@@ -103,6 +103,58 @@ def get_required_input_keys(route: str) -> List[str]:
     return [str(k) for k in keys if k]
 
 
+def get_database_connection(route: str) -> Optional[Dict]:
+    """
+    Returns the 'database_connection' block for a route, or None if absent.
+
+    The block holds per-route Oracle connection coordinates:
+        host:    Oracle server hostname or IP
+        port:    listener port
+        service: Oracle service name
+        schema:  schema/user to connect as
+
+    When None, the connector falls back to VECTOR_DB_* env-var defaults.
+    Password is never stored here — always read from VECTOR_DB_PASSWORD env var.
+    """
+    entry = _REGISTRY.get(route)
+    if not entry:
+        return None
+    conn = entry.get("database_connection")
+    return dict(conn) if isinstance(conn, dict) else None
+
+
+def get_connector(route: str) -> str:
+    """
+    Returns the connector name declared under 'connector:' in the YAML.
+    Tells the router which database to send the request to.
+
+    Supported values:
+        oracle           — Oracle 23ai via VectorDBConnector
+        legacy_postgres  — on-premise PostgreSQL via LegacyDBConnector
+        dwh              — data-warehouse PostgreSQL via DWHConnector
+        logging_postgres — logging PostgreSQL via LoggingDBConnector
+
+    Defaults to 'oracle' so existing pkg_procedure: routes keep working
+    without requiring a connector field.
+    """
+    entry = _REGISTRY.get(route)
+    if not entry:
+        return "oracle"
+    return str(entry.get("connector", "oracle"))
+
+
+def get_sql(route: str) -> str:
+    """
+    Returns the SQL string declared under 'sql:' in the YAML.
+    Used for sql_select and sql_dml call types on PostgreSQL connectors.
+    Returns an empty string if the field is absent.
+    """
+    entry = _REGISTRY.get(route)
+    if not entry:
+        return ""
+    return str(entry.get("sql", "") or "")
+
+
 def registered_routes() -> List[str]:
     """Returns a sorted list of all route names currently in the registry."""
     return sorted(_REGISTRY.keys())

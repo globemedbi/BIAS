@@ -93,7 +93,10 @@ class DBAgent:
         # (the database procedure itself will produce a clear error if a key is absent)
         required_keys = get_required_input_keys(route)
         if required_keys:
-            missing = [k for k in required_keys if k not in payload]
+            # normalize payload keys to lowercase before comparing — matches the
+            # same normalization the connector applies before calling Oracle
+            payload_keys_lower = {k.lower() for k in payload}
+            missing = [k for k in required_keys if k not in payload_keys_lower]
             if missing:
                 logger.warning(
                     "payload_missing_declared_keys",

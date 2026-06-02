@@ -1,35 +1,32 @@
 # DB Agent — Routing Registry
 # ─────────────────────────────────────────────────────────────────────────────
 # Source of truth for every route the db-agent will accept.
-# agent/db_agent.py rejects any route that is NOT listed here.
-#
-# To add a new route:
-#   1. Add a block below (copy an existing one as a template)
-#   2. Restart the db-agent — the registry is loaded once at startup
+# Connection details are now defined per-route, allowing the agent 
+# to route to different Oracle instances, clusters, or schemas.
 # ─────────────────────────────────────────────────────────────────────────────
 
 service:
   name: db-agent
   port: 8003
-  oracle_schema: mldsdev
-  oracle_host: 192.168.244.198
-  oracle_port: 1528
-  oracle_service: aidev_pdb1.drdb.drdatabase.oraclevcn.com
 
 routes:
 
-  # ── Oracle 23ai — generic procedure endpoint ────────────────────────────────
-  # Route key must start with "pkg_procedure:" — the router strips the prefix
-  # and calls VectorDBConnector.execute_procedure(procedure_name, payload).
-
-  "pkg_procedure:PKG_AGENT_INSERT_CLAIM.PROCESS_ATTACHMENT_JSON":
+  # ── Route 1: Inserts (Points to Server A) ───────────────────────────────────
+  "pkg_procedure:PKG_AGENT_CLAIM.PROCESS_INSERT_ATTACHMENT_JSON":
     api_endpoint: /execute-procedure
     http_method: POST
-    target_db: Oracle 23ai — VECTOR_DB
     db_type: Oracle 23ai
-    package: PKG_AGENT_INSERT_CLAIM
-    procedure: PROCESS_ATTACHMENT_JSON
-    call_type: json_clob      # procedure signature: (IN CLOB JSON, OUT CLOB JSON)
+    
+    # NEW: Connection Details specific to this route
+    database_connection:
+      host: 192.168.244.198
+      port: 1528
+      service: aidev_pdb1.drdb.drdatabase.oraclevcn.com
+      schema: mldsdev
+
+    package: PKG_AGENT_CLAIM
+    procedure: PROCESS_INSERT_ATTACHMENT_JSON
+    call_type: json_clob
     input_keys:
       - claim_id
       - attachment_name
@@ -41,12 +38,9 @@ routes:
       - status
       - message
       - row_id
-    description: >
-      Upserts a claim attachment record in Oracle 23ai (schema: mldsdev).
-      Parses the CLOB JSON payload, calls PRC_CM_UPS_CLAIM_ATTACHMENT,
-      and returns the generated row_id on success.
+    description: Upserts a claim attachment record.
     example_payload:
-      target_procedure: PKG_AGENT_INSERT_CLAIM.PROCESS_ATTACHMENT_JSON
+      target_procedure: PKG_AGENT_CLAIM.PROCESS_INSERT_ATTACHMENT_JSON
       token: <INTERNAL_SERVICE_TOKEN>
       service_name: claims-expert
       payload:
@@ -55,23 +49,29 @@ routes:
         attachment_order: 1
         version: 2
         page_count: 4
-        extracted_text: "Patient: John Doe. DOS: 2025-01-15..."
+        extracted_text: "Patient: John Doe..."
     example_response:
       status: SUCCESS
       data:
         status: SUCCESS
         message: Attachment processed successfully.
-        row_id: 98231
 
-  # ── NEW ROUTE: Update Attachment Summary ────────────────────────────────────
-  "pkg_procedure:PKG_AGENT_INSERT_CLAIM.PRC_UPDATE_ATTACHMENT_SUMMARY":
+  # ── Route 2: Summaries (Can point to Server A, B, or C) ─────────────────────
+  "pkg_procedure:PKG_AGENT_CLAIM.PROCESS_UPDATE_SUMMARY_JSON":
     api_endpoint: /execute-procedure
     http_method: POST
-    target_db: Oracle 23ai — VECTOR_DB
     db_type: Oracle 23ai
-    package: PKG_AGENT_INSERT_CLAIM
-    procedure: PRC_UPDATE_ATTACHMENT_SUMMARY
-    call_type: named_params   # procedure signature: 4 IN params (VARCHAR2, VARCHAR2, NUMBER, CLOB), no OUT
+
+    # NEW: Connection Details specific to this route
+    database_connection:
+      host: 192.168.244.198
+      port: 1528
+      service: aidev_pdb1.drdb.drdatabase.oraclevcn.com
+      schema: mldsdev
+
+    package: PKG_AGENT_CLAIM
+    procedure: PROCESS_UPDATE_SUMMARY_JSON
+    call_type: json_clob
     input_keys:
       - claim_id
       - attachment_name
@@ -79,20 +79,19 @@ routes:
       - summary_json
     output_keys:
       - status
-    description: >
-      Updates the attachment_summary column (CLOB) for a specific claim attachment
-      identified by claim_id, attachment_name, and version.
+      - message
+    description: Updates the attachment_summary column (CLOB).
     example_payload:
-      target_procedure: PKG_AGENT_INSERT_CLAIM.PRC_UPDATE_ATTACHMENT_SUMMARY
+      target_procedure: PKG_AGENT_CLAIM.PROCESS_UPDATE_SUMMARY_JSON
       token: <INTERNAL_SERVICE_TOKEN>
       service_name: claims-expert
       payload:
         claim_id: A0000001
         attachment_name: 9999999_test_insert.pdf
         version: 1
-        summary_json: '{"document_type": "Test File", "status": "Verified", "short_summary": "Generated summary text"}'
+        summary_json: '{"status": "Verified"}'
     example_response:
       status: SUCCESS
       data:
         status: SUCCESS
-        message: Procedure executed successfully.
+        message: Summary updated successfully.
