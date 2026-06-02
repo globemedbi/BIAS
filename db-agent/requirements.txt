@@ -1,6 +1,9 @@
 # BIAS Standard Base Requirements
 # Do not remove any of these without team consensus
 
+# Claude terminal
+anthropic==0.52.0
+
 # Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
@@ -14,8 +17,15 @@ httpx==0.26.0
 structlog==24.1.0
 
 # Database
+oracledb>=2.0
 asyncpg==0.29.0
 sqlalchemy[asyncio]==2.0.25
+
+# Config / registry
+pyyaml==6.0.2
+
+# Tooling / reporting (dev only — not imported at runtime)
+openpyxl==3.1.2
 
 # Testing
 pytest==7.4.4
