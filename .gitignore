@@ -48,6 +48,4 @@ secrets/
 # Docker
 *.log
 
-# Claude Code
-.claude/
-CLAUDE.md
+
